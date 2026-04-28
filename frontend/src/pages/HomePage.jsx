@@ -6,6 +6,21 @@ import client from "../api/client";
 const HomePage = () => {
   const [doctors, setDoctors] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [currentImage, setCurrentImage] = useState(0);
+
+  const heroImages = [
+    "https://images.unsplash.com/photo-1631815589968-fdb09a223b1e?auto=format&fit=crop&w=900&q=80",
+    "https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?auto=format&fit=crop&w=900&q=80",
+    "https://images.unsplash.com/photo-1579684385127-1ef15d508118?auto=format&fit=crop&w=900&q=80",
+    "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&w=900&q=80",
+  ];
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentImage((prev) => (prev + 1) % heroImages.length);
+    }, 4000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     const fetchDoctors = async () => {
@@ -39,11 +54,17 @@ const HomePage = () => {
             </div>
           </div>
           <div className="flex justify-center">
-            <img
-              src="https://images.unsplash.com/photo-1631815589968-fdb09a223b1e?auto=format&fit=crop&w=900&q=80"
-              alt="Doctor consultation"
-              className="h-72 w-full max-w-md rounded-2xl object-cover shadow-2xl ring-4 ring-white/20"
-            />
+            <div className="relative h-72 w-full max-w-md">
+              {heroImages.map((img, index) => (
+                <img
+                  key={index}
+                  src={img}
+                  alt={`Doctor consultation ${index + 1}`}
+                  className={`absolute left-0 top-0 h-full w-full rounded-2xl object-cover shadow-2xl ring-4 ring-white/20 transition-opacity duration-1000 ${index === currentImage ? "opacity-100" : "opacity-0"
+                    }`}
+                />
+              ))}
+            </div>
           </div>
         </div>
       </section>

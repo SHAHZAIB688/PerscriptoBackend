@@ -9,7 +9,7 @@ const DashboardSidebar = ({ navItems, activeTab, onTabChange, onLogout, isOpen }
   >
     <div className="flex h-full flex-col">
       <div className="mb-8 flex items-center justify-between">
-        <div className="flex items-center justify-center gap-0">
+        <div className="flex items-center justify-center gap-1 w-full">
           <img src={sidebarLogo} alt="Prescripto logo" className="h-10 w-10 object-contain" />
           <span className="-ml-1 text-[26px] font-bold leading-none tracking-tight">Prescripto</span>
         </div>
@@ -21,14 +21,19 @@ const DashboardSidebar = ({ navItems, activeTab, onTabChange, onLogout, isOpen }
             key={item.id}
             type="button"
             onClick={() => onTabChange(item.id)}
-            className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-[18px] leading-6 transition ${
+            className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-[18px] leading-6 transition ${
               activeTab === item.id
                 ? "bg-white text-[#1980aa] font-semibold"
                 : "text-white font-medium hover:bg-[#2b8db2]/70"
             }`}
           >
-            {item.icon ? <item.icon /> : null}
-            {item.label}
+            <div className="flex items-center gap-3">
+              {item.icon ? <item.icon /> : null}
+              {item.label}
+            </div>
+            {item.hasNotification && (
+              <span className="flex h-2.5 w-2.5 shrink-0 rounded-full bg-rose-500 shadow-sm" />
+            )}
           </button>
         ))}
       </div>

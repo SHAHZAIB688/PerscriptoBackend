@@ -5,6 +5,7 @@ const {
   getMyAppointments,
   cancelAppointment,
   rescheduleAppointment,
+  payAppointment,
 } = require("../controllers/appointmentController");
 const { protect, authorize } = require("../middleware/authMiddleware");
 const validate = require("../middleware/validateMiddleware");
@@ -22,5 +23,6 @@ router.post(
 router.get("/my", protect, authorize("patient"), getMyAppointments);
 router.put("/:id/cancel", protect, authorize("patient"), cancelAppointment);
 router.put("/:id/reschedule", protect, authorize("patient"), rescheduleAppointment);
+router.put("/:id/pay", protect, authorize("patient"), payAppointment);
 
 module.exports = router;

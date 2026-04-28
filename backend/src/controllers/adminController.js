@@ -250,7 +250,7 @@ const listAppointments = async (req, res) => {
 };
 
 const listDoctorApplications = async (req, res) => {
-  const applications = await DoctorProfile.find({ status: { $in: ["pending", "rejected"] } })
+  const applications = await DoctorProfile.find({ status: "pending" })
     .populate("user", "name email specialization experience degreeFile status")
     .sort({ createdAt: -1 });
   res.json(applications);

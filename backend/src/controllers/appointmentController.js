@@ -29,6 +29,7 @@ const getMyAppointments = async (req, res) => {
   const appointments = await Appointment.find({ patient: req.user._id })
     .populate("doctor", "name email")
     .populate("doctorProfile", "specialization")
+    .populate("prescription")
     .sort({ createdAt: -1 });
   res.json(appointments);
 };
@@ -51,9 +52,18 @@ const rescheduleAppointment = async (req, res) => {
   res.json(appointment);
 };
 
+const payAppointment = async (req, res) => {
+  const appointment = await Appointment.findOne({ _id: req.params.id, patient: req.user._id });
+  if (!appointment) return res.status(404).json({ message: "Appointment not found" });
+  appointment.status = "completed";
+  await appointment.save();
+  res.json(appointment);
+};
+
 module.exports = {
   bookAppointment,
   getMyAppointments,
   cancelAppointment,
   rescheduleAppointment,
+  payAppointment,
 };

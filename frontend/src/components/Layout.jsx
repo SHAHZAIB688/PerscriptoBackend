@@ -48,8 +48,7 @@ const Layout = ({ children }) => {
                   <li><Link to="/" className="text-sm text-slate-600 hover:text-brand-600 transition-colors">Home</Link></li>
                   <li><Link to="/doctors" className="text-sm text-slate-600 hover:text-brand-600 transition-colors">Find Doctors</Link></li>
                   <li><Link to="/dashboard" className="text-sm text-slate-600 hover:text-brand-600 transition-colors">Book Appointment</Link></li>
-                  <li><Link to="/auth" className="text-sm text-slate-600 hover:text-brand-600 transition-colors">Login / Register</Link></li>
-                </ul>
+                </ul> 
               </div>
 
               {/* Legal */}
@@ -58,7 +57,6 @@ const Layout = ({ children }) => {
                 <ul className="mt-6 space-y-4">
                   <li><Link to="/about" className="text-sm text-slate-600 hover:text-brand-600 transition-colors">About Us</Link></li>
                   <li><Link to="/terms" className="text-sm text-slate-600 hover:text-brand-600 transition-colors">Terms of Service</Link></li>
-                  <li><Link to="/terms" className="text-sm text-slate-600 hover:text-brand-600 transition-colors">Privacy Policy</Link></li>
                   <li><Link to="/contact" className="text-sm text-slate-600 hover:text-brand-600 transition-colors">Contact Support</Link></li>
                 </ul>
               </div>

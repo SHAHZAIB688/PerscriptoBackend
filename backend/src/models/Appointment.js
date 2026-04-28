@@ -10,10 +10,11 @@ const appointmentSchema = new mongoose.Schema(
     reason: { type: String, default: "" },
     status: {
       type: String,
-      enum: ["pending", "accepted", "rejected", "completed", "cancelled"],
+      enum: ["pending", "accepted", "in-progress", "awaiting-payment", "rejected", "completed", "cancelled"],
       default: "pending",
     },
     reminderSent: { type: Boolean, default: false },
+    prescription: { type: mongoose.Schema.Types.ObjectId, ref: "Prescription" },
   },
   { timestamps: true }
 );

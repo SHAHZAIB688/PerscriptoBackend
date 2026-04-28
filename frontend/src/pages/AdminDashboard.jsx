@@ -155,7 +155,7 @@ const AdminDashboard = () => {
       subtitle="Control doctor verification and system operations."
       navItems={[
         { id: "dashboard", label: "Dashboard", icon: DashboardIcon },
-        { id: "applications", label: "Doctor Applications", icon: FileIcon },
+        { id: "applications", label: "Doctor Applications", icon: FileIcon, hasNotification: applications.some((a) => a.status === "pending") },
         { id: "approved", label: "Doctors (Approved)", icon: DoctorIcon },
         { id: "users", label: "Users", icon: UsersIcon },
         { id: "appointments", label: "Appointments", icon: AppointmentIcon },
@@ -187,71 +187,77 @@ const AdminDashboard = () => {
               </section>
             )}
             <section className="grid gap-4 lg:grid-cols-3">
-              <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                <h3 className="text-lg font-semibold text-slate-900">Appointment</h3>
-                <div style={{ width: "100%", height: 260 }}>
-                  <ResponsiveContainer>
+              <article className="flex flex-col rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                <h3 className="mb-4 text-lg font-semibold text-slate-900">Appointment</h3>
+                <div className="relative flex-1" style={{ minHeight: 260 }}>
+                  <ResponsiveContainer width="100%" height="100%">
                     <PieChart key={`status-${chartKey}`}>
                       <Pie
                         data={appointmentDonutData}
                         dataKey="count"
                         nameKey="status"
                         outerRadius={95}
-                        innerRadius={62}
+                        innerRadius={65}
                         isAnimationActive
                         animationDuration={900}
+                        stroke="none"
                       >
                         {appointmentDonutData.map((entry, index) => (
                           <Cell key={`${entry.status}-${index}`} fill={entry.fill} />
                         ))}
                       </Pie>
                       <Tooltip />
+                      <Legend verticalAlign="bottom" height={36} iconType="circle" />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
               </article>
 
-              <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                <div className="mb-3 flex items-center justify-between">
+              <article className="flex flex-col rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="mb-2 flex items-center justify-between">
                   <h3 className="text-lg font-semibold text-slate-900">Assiduity</h3>
                 </div>
-                <div className="mb-2 flex items-center gap-4 text-sm">
+                <div className="mb-4 flex items-center gap-4 text-sm">
                   <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-[#5B3F99]" />Present</span>
                   <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-[#F1692F]" />Absent</span>
                 </div>
-                <div style={{ width: "100%", height: 235 }}>
-                  <ResponsiveContainer>
+                <div className="relative flex-1" style={{ minHeight: 235 }}>
+                  <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
                         data={attendanceData.chart}
                         dataKey="value"
-                        outerRadius={90}
-                        innerRadius={60}
+                        outerRadius={95}
+                        innerRadius={65}
                         isAnimationActive
                         animationDuration={1000}
+                        stroke="none"
                       >
                         {attendanceData.chart.map((entry) => (
                           <Cell key={entry.name} fill={entry.fill} />
                         ))}
                       </Pie>
+                      <Tooltip />
                     </PieChart>
                   </ResponsiveContainer>
+                  <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                    <span className="text-3xl font-semibold text-slate-900">{attendanceData.percent}%</span>
+                  </div>
                 </div>
-                <p className="-mt-28 text-center text-3xl font-semibold text-slate-900">{attendanceData.percent}%</p>
               </article>
 
-              <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                <h3 className="mb-2 text-lg font-semibold text-slate-900">Performance</h3>
-                <div style={{ width: "100%", height: 260 }}>
-                  <ResponsiveContainer>
+              <article className="flex flex-col rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                <h3 className="mb-4 text-lg font-semibold text-slate-900">Performance</h3>
+                <div className="relative flex-1" style={{ minHeight: 260 }}>
+                  <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={verificationChartData} margin={{ left: -18, right: 0, top: 10, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} />
                       <XAxis dataKey="month" axisLine={false} tickLine={false} />
                       <YAxis axisLine={false} tickLine={false} allowDecimals={false} />
-                      <Tooltip />
-                      <Legend />
-                      <Bar dataKey="approved" name="Approved" fill="#5B3F99" radius={[8, 8, 0, 0]} />
-                      <Bar dataKey="rejected" name="Rejected" fill="#F1692F" radius={[8, 8, 0, 0]} />
+                      <Tooltip cursor={{ fill: 'transparent' }} />
+                      <Legend verticalAlign="bottom" height={36} iconType="circle" />
+                      <Bar dataKey="approved" name="Approved" fill="#5B3F99" radius={[4, 4, 0, 0]} maxBarSize={40} />
+                      <Bar dataKey="rejected" name="Rejected" fill="#F1692F" radius={[4, 4, 0, 0]} maxBarSize={40} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -267,7 +273,6 @@ const AdminDashboard = () => {
                   <div className="flex justify-between rounded-lg bg-slate-100 p-2"><span>Returning Patients</span><b>{stats.patientAnalytics?.returningPatients ?? 0}</b></div>
                   <div className="flex justify-between rounded-lg bg-slate-100 p-2"><span>Patient Growth Rate</span><b>{stats.patientAnalytics?.growthRate ?? 0}%</b></div>
                   <div className="flex justify-between rounded-lg bg-slate-100 p-2"><span>Gender Distribution</span><b>M {stats.patientAnalytics?.genderDistribution?.male ?? 0} / F {stats.patientAnalytics?.genderDistribution?.female ?? 0}</b></div>
-                  <div className="flex justify-between rounded-lg bg-slate-100 p-2"><span>Age Groups</span><b>Under 18 / 18-35 / 36-55 / 55+</b></div>
                 </div>
               </article>
 
