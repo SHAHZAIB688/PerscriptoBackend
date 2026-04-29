@@ -12,7 +12,7 @@ const PatientDashboard = () => {
   const [form, setForm] = useState({ doctorProfileId: "", date: "", timeSlot: "", reason: "" });
   const [availableSlots, setAvailableSlots] = useState([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
-  const [paymentModal, setPaymentModal] = useState({ isOpen: false, appointmentId: null, doctorName: "", method: "jazzcash", details: "" });
+  const [paymentModal, setPaymentModal] = useState({ isOpen: false, appointmentId: null, doctorName: "", method: "stripe", details: "" });
   const [reviewModal, setReviewModal] = useState({ isOpen: false, appointmentId: null, doctorName: "", rating: 5, comment: "" });
   const prevAppointmentsRef = useRef([]);
 
@@ -47,6 +47,30 @@ const PatientDashboard = () => {
     const intervalId = setInterval(fetchAppointments, 10000);
     return () => clearInterval(intervalId);
   }, []);
+
+  useEffect(() => {
+    const fetchAvailableSlots = async () => {
+      if (!form.doctorProfileId || !form.date) {
+        setAvailableSlots([]);
+        return;
+      }
+
+      setLoadingSlots(true);
+      try {
+        const { data } = await client.get(`/doctors/available-slots/${form.doctorProfileId}`, {
+          params: { date: form.date },
+        });
+        setAvailableSlots(Array.isArray(data) ? data : []);
+      } catch (error) {
+        setAvailableSlots([]);
+        toast.error("Failed to load available time slots");
+      } finally {
+        setLoadingSlots(false);
+      }
+    };
+
+    fetchAvailableSlots();
+  }, [form.doctorProfileId, form.date]);
 
   const book = async (e) => {
     e.preventDefault();
@@ -89,7 +113,7 @@ const PatientDashboard = () => {
   };
 
   const openPaymentModal = (id, doctorName) => {
-    setPaymentModal({ isOpen: true, appointmentId: id, doctorName, method: "jazzcash", details: "" });
+    setPaymentModal({ isOpen: true, appointmentId: id, doctorName, method: "stripe", details: "" });
   };
 
   const processPayment = async (e) => {
@@ -104,7 +128,7 @@ const PatientDashboard = () => {
       fetchAppointments();
       const currentId = paymentModal.appointmentId;
       const currentDoc = paymentModal.doctorName;
-      setPaymentModal({ isOpen: false, appointmentId: null, doctorName: "", method: "jazzcash", details: "" });
+      setPaymentModal({ isOpen: false, appointmentId: null, doctorName: "", method: "stripe", details: "" });
 
       // Open review modal after a short delay
       setTimeout(() => {
@@ -207,7 +231,10 @@ const PatientDashboard = () => {
               <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                 <h3 className="text-lg font-semibold text-slate-900">Book Appointment</h3>
                 <form className="mt-3 grid gap-3" onSubmit={book}>
-                  <select required value={form.doctorProfileId} onChange={(e) => setForm((p) => ({ ...p, doctorProfileId: e.target.value }))}>
+                  <select required value={form.doctorProfileId} onChange={(e) => {
+                    setForm((p) => ({ ...p, doctorProfileId: e.target.value, timeSlot: "" }));
+                    setAvailableSlots([]);
+                  }}>
                     <option value="">Select doctor</option>
                     {doctors.map((d) => <option key={d._id} value={d._id}>{d.user?.name} - {d.specialization}</option>)}
                   </select>
@@ -316,7 +343,7 @@ const PatientDashboard = () => {
                   value={paymentModal.method}
                   onChange={(e) => setPaymentModal({ ...paymentModal, method: e.target.value })}
                 >
-                  <option value="jazzcash">JazzCash</option>
+                  <option value="stripe">Stripe</option>
                   <option value="easypaisa">EasyPaisa</option>
                   <option value="bank">Bank Transfer</option>
                 </select>
@@ -339,7 +366,7 @@ const PatientDashboard = () => {
               <div className="mt-6 flex gap-3">
                 <button
                   type="button"
-                  onClick={() => setPaymentModal({ isOpen: false, appointmentId: null, doctorName: "", method: "jazzcash", details: "" })}
+                  onClick={() => setPaymentModal({ isOpen: false, appointmentId: null, doctorName: "", method: "stripe", details: "" })}
                   className="w-full rounded-xl border border-slate-300 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
                 >
                   Cancel

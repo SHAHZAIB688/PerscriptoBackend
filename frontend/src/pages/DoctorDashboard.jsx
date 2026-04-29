@@ -7,8 +7,26 @@ import VerificationModal from "../components/VerificationModal";
 import PrescriptionForm from "../components/PrescriptionForm";
 import { DashboardIcon, AppointmentIcon, FileIcon, ProfileIcon, IconWrapper } from "../components/icons";
 
+const WEEKDAY_OPTIONS = ["monday", "tuesday", "wednesday", "thursday", "friday"];
+const DEFAULT_SLOT = { start: "09:00", end: "17:00" };
+
+const normalizeSingleAvailability = (slots = []) => {
+  const matched = slots.find((slot) => WEEKDAY_OPTIONS.includes((slot?.day || "").trim().toLowerCase()));
+  const matchedRange = slots.find(
+    (slot) =>
+      WEEKDAY_OPTIONS.includes((slot?.startDay || "").trim().toLowerCase()) &&
+      WEEKDAY_OPTIONS.includes((slot?.endDay || "").trim().toLowerCase())
+  );
+  return [{
+    startDay: (matchedRange?.startDay || matched?.day || "monday").toLowerCase(),
+    endDay: (matchedRange?.endDay || matched?.day || "friday").toLowerCase(),
+    start: matched?.start || DEFAULT_SLOT.start,
+    end: matched?.end || DEFAULT_SLOT.end,
+  }];
+};
+
 const DoctorDashboard = () => {
-  const [availability, setAvailability] = useState([{ day: "monday", start: "09:00", end: "17:00" }]);
+  const [availability, setAvailability] = useState(normalizeSingleAvailability());
   const [appointments, setAppointments] = useState([]);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -28,7 +46,7 @@ const DoctorDashboard = () => {
         bio: data.bio || "",
         experienceYears: data.experienceYears || 0
       });
-      setAvailability(data.availability || []);
+      setAvailability(normalizeSingleAvailability(data.availability || []));
     } catch (error) {
       toast.error(error.response?.data?.message || "Failed to load profile");
     }
@@ -146,14 +164,6 @@ const DoctorDashboard = () => {
     }
   };
 
-  const addSlot = () => {
-    setAvailability([...availability, { day: "monday", start: "09:00", end: "17:00" }]);
-  };
-
-  const removeSlot = (idx) => {
-    setAvailability(availability.filter((_, i) => i !== idx));
-  };
-
   const updateStatus = async (id, status) => {
     await client.put(`/doctors/appointments/${id}/status`, { status });
     toast.success("Appointment updated");
@@ -246,47 +256,52 @@ const DoctorDashboard = () => {
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-bold text-slate-900">Manage Availability</h3>
-                <button 
-                  type="button" 
-                  onClick={addSlot}
-                  className="text-xs font-bold text-brand-600 hover:text-brand-700 bg-brand-50 px-3 py-1.5 rounded-lg transition-colors"
-                >
-                  + Add Slot
-                </button>
               </div>
               
-              {availability.length === 0 ? (
-                <p className="text-sm text-slate-500 py-4 text-center border border-dashed border-slate-200 rounded-xl">No availability slots added. Patients won't be able to book appointments.</p>
-              ) : (
-                <div className="space-y-3">
-                  {availability.map((slot, idx) => (
-                    <div className="flex flex-wrap items-center gap-3 p-3 rounded-xl border border-slate-100 bg-slate-50" key={idx}>
-                      <select 
-                        value={slot.day} 
-                        className="flex-1 min-w-[120px] rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-brand-600" 
-                        onChange={(e) => setAvailability((p) => p.map((s, i) => i === idx ? { ...s, day: e.target.value } : s))}
-                      >
-                        {["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"].map(d => (
-                          <option key={d} value={d}>{d.charAt(0).toUpperCase() + d.slice(1)}</option>
-                        ))}
-                      </select>
-                      <div className="flex items-center gap-2">
-                        <input type="time" value={slot.start} className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-brand-600" onChange={(e) => setAvailability((p) => p.map((s, i) => i === idx ? { ...s, start: e.target.value } : s))} />
-                        <span className="text-slate-400 text-xs font-bold">TO</span>
-                        <input type="time" value={slot.end} className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-brand-600" onChange={(e) => setAvailability((p) => p.map((s, i) => i === idx ? { ...s, end: e.target.value } : s))} />
-                      </div>
-                      <button 
-                        type="button" 
-                        onClick={() => removeSlot(idx)}
-                        className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
-                        title="Remove slot"
-                      >
-                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                      </button>
-                    </div>
-                  ))}
+              <div className="space-y-3">
+                <div className="flex flex-wrap items-center gap-2 p-3 rounded-xl border border-slate-100 bg-slate-50">
+                  <input
+                    type="text"
+                    list="start-day-options"
+                    value={availability[0]?.startDay || "monday"}
+                    className="w-[150px] rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm capitalize outline-none focus:border-brand-600"
+                    onChange={(e) => setAvailability((p) => [{ ...(p[0] || DEFAULT_SLOT), startDay: e.target.value.toLowerCase() }])}
+                  />
+                  <span className="text-slate-400 text-xs font-bold">TO</span>
+                  <input
+                    type="text"
+                    list="end-day-options"
+                    value={availability[0]?.endDay || "friday"}
+                    className="w-[150px] rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm capitalize outline-none focus:border-brand-600"
+                    onChange={(e) => setAvailability((p) => [{ ...(p[0] || DEFAULT_SLOT), endDay: e.target.value.toLowerCase() }])}
+                  />
+                  <datalist id="start-day-options">
+                    {WEEKDAY_OPTIONS.map((d) => (
+                      <option key={`start-${d}`} value={d} />
+                    ))}
+                  </datalist>
+                  <datalist id="end-day-options">
+                    {WEEKDAY_OPTIONS.map((d) => (
+                      <option key={`end-${d}`} value={d} />
+                    ))}
+                  </datalist>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="time"
+                      value={availability[0]?.start || DEFAULT_SLOT.start}
+                      className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-brand-600"
+                      onChange={(e) => setAvailability((p) => [{ ...(p[0] || { day: "monday" }), start: e.target.value }])}
+                    />
+                    <span className="text-slate-400 text-xs font-bold">TO</span>
+                    <input
+                      type="time"
+                      value={availability[0]?.end || DEFAULT_SLOT.end}
+                      className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-brand-600"
+                      onChange={(e) => setAvailability((p) => [{ ...(p[0] || { day: "monday" }), end: e.target.value }])}
+                    />
+                  </div>
                 </div>
-              )}
+              </div>
               
               <button 
                 type="button" 

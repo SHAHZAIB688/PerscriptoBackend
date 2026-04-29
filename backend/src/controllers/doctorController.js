@@ -19,7 +19,21 @@ const updateAvailability = async (req, res) => {
   if (profile.status !== "approved") {
     return res.status(403).json({ message: "Your account is under verification. Please wait for admin approval." });
   }
-  profile.availability = req.body.availability || [];
+  const weekDays = ["monday", "tuesday", "wednesday", "thursday", "friday"];
+  const incoming = Array.isArray(req.body.availability) ? req.body.availability : [];
+  const selected = incoming[0] || {};
+  const selectedDay = ((selected?.day || "monday").trim().toLowerCase());
+  const selectedStartDay = ((selected?.startDay || selectedDay || "monday").trim().toLowerCase());
+  const selectedEndDay = ((selected?.endDay || selectedDay || "friday").trim().toLowerCase());
+
+  profile.availability = [{
+    day: weekDays.includes(selectedDay) ? selectedDay : "monday",
+    startDay: weekDays.includes(selectedStartDay) ? selectedStartDay : "monday",
+    endDay: weekDays.includes(selectedEndDay) ? selectedEndDay : "friday",
+    start: selected?.start || "09:00",
+    end: selected?.end || "17:00",
+  }];
+
   await profile.save();
   return res.json(profile);
 };
@@ -84,12 +98,37 @@ const getAvailableSlots = async (req, res) => {
     const profile = await DoctorProfile.findById(doctorId);
     if (!profile) return res.status(404).json({ message: "Doctor profile not found" });
 
-    // Get day of week (0-6, 0 is Sunday)
-    const d = new Date(date);
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(date)) {
+      return res.status(400).json({ message: "Invalid date format. Use YYYY-MM-DD." });
+    }
+
+    // Use UTC day calculation to avoid server timezone shifting the weekday.
+    const [year, month, day] = date.split("-").map(Number);
+    const dayIndex = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
     const days = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
-    const dayName = days[d.getDay()];
-    
-    const availability = profile.availability.filter(a => a.day.toLowerCase() === dayName);
+    const dayName = days[dayIndex];
+    const weekdayOrder = ["monday", "tuesday", "wednesday", "thursday", "friday"];
+
+    const availability = (profile.availability || []).filter(
+      (a) => {
+        const exactDay = (a?.day || "").trim().toLowerCase();
+        const startDay = (a?.startDay || exactDay).trim().toLowerCase();
+        const endDay = (a?.endDay || exactDay).trim().toLowerCase();
+
+        if (exactDay === dayName) return true;
+
+        const currentIdx = weekdayOrder.indexOf(dayName);
+        const startIdx = weekdayOrder.indexOf(startDay);
+        const endIdx = weekdayOrder.indexOf(endDay);
+
+        if (currentIdx === -1 || startIdx === -1 || endIdx === -1) return false;
+        if (startIdx <= endIdx) {
+          return currentIdx >= startIdx && currentIdx <= endIdx;
+        }
+        return currentIdx >= startIdx || currentIdx <= endIdx;
+      }
+    );
     
     if (availability.length === 0) {
       return res.json([]);
@@ -125,7 +164,8 @@ const getAvailableSlots = async (req, res) => {
       }
     });
 
-    res.json(availableSlots.sort());
+    const uniqueSortedSlots = [...new Set(availableSlots)].sort();
+    res.json(uniqueSortedSlots);
   } catch (error) {
     console.error("Error in getAvailableSlots:", error);
     res.status(500).json({ message: "Error fetching slots" });

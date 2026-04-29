@@ -14,7 +14,8 @@ const DashboardShell = ({ title, subtitle, navItems, children, notifications, de
   });
   const notificationRef = useRef(null);
 
-  const unreadNotifications = notifications?.filter(n => !readIds.includes(n.id)) || [];
+  const safeNotifications = Array.isArray(notifications) ? notifications : [];
+  const unreadNotifications = safeNotifications.filter(n => !readIds.includes(n.id));
   const hasUnread = unreadNotifications.length > 0 || navItems?.some(item => item.hasNotification);
 
   useEffect(() => {
@@ -28,7 +29,7 @@ const DashboardShell = ({ title, subtitle, navItems, children, notifications, de
   };
 
   const markAllAsRead = () => {
-    const allIds = notifications?.map(n => n.id) || [];
+    const allIds = safeNotifications.map(n => n.id);
     setReadIds(prev => [...new Set([...prev, ...allIds])]);
   };
 
@@ -105,7 +106,7 @@ const DashboardShell = ({ title, subtitle, navItems, children, notifications, de
               </div>
             </div>
             <div className="mt-2 max-h-96 overflow-y-auto custom-scrollbar">
-              {notifications?.length === 0 ? (
+              {safeNotifications.length === 0 ? (
                 <div className="px-4 py-8 text-center">
                   <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-50 text-slate-300 mb-3">
                     <BellIcon />
@@ -113,7 +114,7 @@ const DashboardShell = ({ title, subtitle, navItems, children, notifications, de
                   <p className="text-xs font-medium text-slate-500">All caught up!</p>
                 </div>
               ) : (
-                notifications.map((notif) => (
+                safeNotifications.map((notif) => (
                   <button
                     key={notif.id}
                     onClick={() => {
