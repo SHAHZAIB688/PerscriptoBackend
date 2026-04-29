@@ -1,1 +1,6 @@
 frontend/
+backend/
+node_modules
+.env
+uploads
+*.log
