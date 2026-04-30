@@ -21,6 +21,12 @@ const userSchema = new mongoose.Schema(
       enum: ["pending", "approved", "rejected"],
       default: "approved",
     },
+    healthSummary: {
+      bloodGroup: { type: String, default: "" },
+      allergies: { type: String, default: "" },
+      chronicDiseases: { type: String, default: "" },
+      lastCheckup: { type: String, default: "" }, // YYYY-MM-DD
+    },
   },
   { timestamps: true }
 );

@@ -1,6 +1,8 @@
 const DoctorProfile = require("../models/DoctorProfile");
 const Appointment = require("../models/Appointment");
 
+const isValidTime = (value) => /^([01]\d|2[0-3]):([0-5]\d)$/.test(String(value || ""));
+
 const getDoctors = async (req, res) => {
   const { search = "", specialization = "" } = req.query;
   const query = { isActive: true, status: "approved" };
@@ -11,6 +13,20 @@ const getDoctors = async (req, res) => {
     .where("specialization")
     .regex(new RegExp(search, "i"));
   res.json(doctors);
+};
+
+const getDoctorById = async (req, res) => {
+  const doctor = await DoctorProfile.findOne({
+    _id: req.params.id,
+    isActive: true,
+    status: "approved",
+  }).populate("user", "name email phone role");
+
+  if (!doctor) {
+    return res.status(404).json({ message: "Doctor not found" });
+  }
+
+  return res.json(doctor);
 };
 
 const updateAvailability = async (req, res) => {
@@ -26,12 +42,21 @@ const updateAvailability = async (req, res) => {
   const selectedStartDay = ((selected?.startDay || selectedDay || "monday").trim().toLowerCase());
   const selectedEndDay = ((selected?.endDay || selectedDay || "friday").trim().toLowerCase());
 
+  const start = isValidTime(selected?.start) ? selected.start : "09:00";
+  const end = isValidTime(selected?.end) ? selected.end : "17:00";
+  const normalizedStartDay = weekDays.includes(selectedStartDay) ? selectedStartDay : "monday";
+  const normalizedEndDay = weekDays.includes(selectedEndDay) ? selectedEndDay : "friday";
+
+  if (start >= end) {
+    return res.status(400).json({ message: "End time must be later than start time." });
+  }
+
   profile.availability = [{
-    day: weekDays.includes(selectedDay) ? selectedDay : "monday",
-    startDay: weekDays.includes(selectedStartDay) ? selectedStartDay : "monday",
-    endDay: weekDays.includes(selectedEndDay) ? selectedEndDay : "friday",
-    start: selected?.start || "09:00",
-    end: selected?.end || "17:00",
+    day: weekDays.includes(selectedDay) ? selectedDay : normalizedStartDay,
+    startDay: normalizedStartDay,
+    endDay: normalizedEndDay,
+    start,
+    end,
   }];
 
   await profile.save();
@@ -174,6 +199,7 @@ const getAvailableSlots = async (req, res) => {
 
 module.exports = {
   getDoctors,
+  getDoctorById,
   updateAvailability,
   getMyAppointments,
   updateAppointmentStatus,

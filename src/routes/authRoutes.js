@@ -1,7 +1,7 @@
 const express = require("express");
 const { body } = require("express-validator");
-const { register, login, me } = require("../controllers/authController");
-const { protect } = require("../middleware/authMiddleware");
+const { register, login, me, updateHealthSummary } = require("../controllers/authController");
+const { protect, authorize } = require("../middleware/authMiddleware");
 const validate = require("../middleware/validateMiddleware");
 const { upload } = require("../middleware/uploadMiddleware");
 
@@ -25,5 +25,6 @@ router.post(
 );
 router.post("/login", [body("email").isEmail(), body("password").notEmpty()], validate, login);
 router.get("/me", protect, me);
+router.put("/health-summary", protect, authorize("patient"), updateHealthSummary);
 
 module.exports = router;

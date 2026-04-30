@@ -3,6 +3,8 @@ const mongoose = require("mongoose");
 const slotSchema = new mongoose.Schema(
   {
     day: { type: String, required: true }, // monday..sunday
+    startDay: { type: String, default: "" }, // optional range start day
+    endDay: { type: String, default: "" }, // optional range end day
     start: { type: String, required: true }, // HH:mm
     end: { type: String, required: true }, // HH:mm
   },

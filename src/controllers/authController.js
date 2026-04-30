@@ -110,4 +110,24 @@ const login = async (req, res) => {
 
 const me = async (req, res) => res.json(req.user);
 
-module.exports = { register, login, me };
+const updateHealthSummary = async (req, res) => {
+  const { bloodGroup = "", allergies = "", chronicDiseases = "", lastCheckup = "" } = req.body;
+
+  const user = await User.findById(req.user._id);
+  if (!user) return res.status(404).json({ message: "User not found" });
+
+  user.healthSummary = {
+    bloodGroup: String(bloodGroup || "").trim(),
+    allergies: String(allergies || "").trim(),
+    chronicDiseases: String(chronicDiseases || "").trim(),
+    lastCheckup: String(lastCheckup || "").trim(),
+  };
+  await user.save();
+
+  return res.json({
+    message: "Health summary updated",
+    healthSummary: user.healthSummary,
+  });
+};
+
+module.exports = { register, login, me, updateHealthSummary };

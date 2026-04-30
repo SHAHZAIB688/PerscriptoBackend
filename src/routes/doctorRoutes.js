@@ -1,6 +1,7 @@
 const express = require("express");
 const {
   getDoctors,
+  getDoctorById,
   updateAvailability,
   getMyAppointments,
   updateAppointmentStatus,
@@ -19,5 +20,6 @@ router.get("/appointments", protect, authorize("doctor"), getMyAppointments);
 router.put("/appointments/:id/status", protect, authorize("doctor"), updateAppointmentStatus);
 router.get("/profile", protect, authorize("doctor"), getDoctorProfile);
 router.put("/profile", protect, authorize("doctor"), updateProfile);
+router.get("/:id", getDoctorById);
 
 module.exports = router;
