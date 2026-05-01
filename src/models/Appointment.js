@@ -15,6 +15,11 @@ const appointmentSchema = new mongoose.Schema(
     },
     reminderSent: { type: Boolean, default: false },
     prescription: { type: mongoose.Schema.Types.ObjectId, ref: "Prescription" },
+    paymentAmount: { type: Number, default: null },
+    paymentCurrency: { type: String, default: "PKR" },
+    paymentMethod: { type: String, enum: ["stripe", "manual", "none"] },
+    paidAt: { type: Date, default: null },
+    stripeCheckoutSessionId: { type: String, default: null },
   },
   { timestamps: true }
 );

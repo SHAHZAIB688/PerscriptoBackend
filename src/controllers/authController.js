@@ -90,7 +90,16 @@ const login = async (req, res) => {
     return res.status(401).json({ message: "Invalid credentials" });
   }
   if (user.role === "doctor" && user.status !== "approved") {
-    return res.status(403).json({ message: "Doctor account pending admin approval" });
+    if (user.status === "pending") {
+      return res.status(403).json({ message: "Worker account pending admin approval" });
+    }
+    if (user.status === "suspended") {
+      return res.status(403).json({ message: "Account temporarily suspended. Contact admin." });
+    }
+    if (user.status === "blocked" || user.status === "rejected") {
+      return res.status(403).json({ message: "Account blocked. Contact admin." });
+    }
+    return res.status(403).json({ message: "Account not approved" });
   }
   return res.json({
     token: generateToken(user._id, user.role),
@@ -101,6 +110,7 @@ const login = async (req, res) => {
       role: user.role,
       phone: user.phone,
       status: user.status,
+      suspendedUntil: user.suspendedUntil || null,
       specialization: user.specialization,
       experience: user.experience,
       degreeFile: user.degreeFile,
@@ -109,6 +119,48 @@ const login = async (req, res) => {
 };
 
 const me = async (req, res) => res.json(req.user);
+
+const updateAccountProfile = async (req, res) => {
+  const { name, email, phone, currentPassword, newPassword } = req.body;
+
+  const user = await User.findById(req.user._id);
+  if (!user) return res.status(404).json({ message: "User not found" });
+
+  if (name !== undefined) {
+    const trimmed = String(name || "").trim();
+    if (!trimmed) return res.status(400).json({ message: "Name cannot be empty" });
+    user.name = trimmed;
+  }
+
+  if (phone !== undefined) {
+    const trimmed = String(phone || "").trim();
+    if (!trimmed) return res.status(400).json({ message: "Phone cannot be empty" });
+    user.phone = trimmed;
+  }
+
+  if (email !== undefined) {
+    const normalized = String(email || "").trim().toLowerCase();
+    if (!normalized) return res.status(400).json({ message: "Email cannot be empty" });
+    if (normalized !== user.email) {
+      const taken = await User.findOne({ email: normalized, _id: { $ne: user._id } });
+      if (taken) return res.status(409).json({ message: "Email already in use" });
+      user.email = normalized;
+    }
+  }
+
+  if (newPassword !== undefined && String(newPassword).length > 0) {
+    const pwd = String(newPassword);
+    if (pwd.length < 6) return res.status(400).json({ message: "New password must be at least 6 characters" });
+    if (!currentPassword) return res.status(400).json({ message: "Current password is required to set a new password" });
+    const ok = await user.comparePassword(String(currentPassword));
+    if (!ok) return res.status(400).json({ message: "Current password is incorrect" });
+    user.password = pwd;
+  }
+
+  await user.save();
+  const fresh = await User.findById(user._id).select("-password");
+  return res.json(fresh);
+};
 
 const updateHealthSummary = async (req, res) => {
   const { bloodGroup = "", allergies = "", chronicDiseases = "", lastCheckup = "" } = req.body;
@@ -130,4 +182,4 @@ const updateHealthSummary = async (req, res) => {
   });
 };
 
-module.exports = { register, login, me, updateHealthSummary };
+module.exports = { register, login, me, updateAccountProfile, updateHealthSummary };

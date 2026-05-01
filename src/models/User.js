@@ -18,9 +18,11 @@ const userSchema = new mongoose.Schema(
     image: { type: String, default: "" },
     status: {
       type: String,
-      enum: ["pending", "approved", "rejected"],
+      enum: ["pending", "approved", "rejected", "suspended", "blocked"],
       default: "approved",
     },
+    suspendedUntil: { type: Date, default: null },
+    suspensionReason: { type: String, default: "" },
     healthSummary: {
       bloodGroup: { type: String, default: "" },
       allergies: { type: String, default: "" },

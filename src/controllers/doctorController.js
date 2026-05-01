@@ -94,7 +94,7 @@ const updateAppointmentStatus = async (req, res) => {
 const getDoctorProfile = async (req, res) => {
   const profile = await DoctorProfile.findOne({ user: req.user._id }).populate(
     "user",
-    "name email status specialization experience degreeFile"
+    "name email phone status specialization experience degreeFile"
   );
   if (!profile) return res.status(404).json({ message: "Doctor profile not found" });
   return res.json(profile);

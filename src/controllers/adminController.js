@@ -11,7 +11,30 @@ const getStats = async (req, res) => {
   weekStart.setDate(now.getDate() - 6);
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const consultationFee = Number(process.env.CONSULTATION_FEE || 50);
+  const pad2 = (n) => String(n).padStart(2, "0");
+  const monthStartStr = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-01`;
+  const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const monthEndStr = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(lastDayOfMonth)}`;
+  const commissionRate = Number(process.env.PLATFORM_COMMISSION_RATE || 0.2);
+
+  const sumCompletedFeesPipeline = (match) => [
+    { $match: { status: "completed", ...match } },
+    {
+      $lookup: {
+        from: "doctorprofiles",
+        localField: "doctorProfile",
+        foreignField: "_id",
+        as: "dp",
+      },
+    },
+    { $unwind: "$dp" },
+    {
+      $group: {
+        _id: null,
+        gross: { $sum: { $toDouble: { $ifNull: ["$dp.consultationFee", 0] } } },
+      },
+    },
+  ];
 
   const [
     totalPatients,
@@ -33,6 +56,10 @@ const getStats = async (req, res) => {
     topDoctorsAgg,
     doctorAvailabilityAgg,
     monthlyAppointmentTrendAgg,
+    completedRevenueAgg,
+    dailyGrossAgg,
+    monthlyPeriodGrossAgg,
+    monthlyEarnAgg,
   ] = await Promise.all([
     User.countDocuments({ role: "patient" }),
     User.countDocuments({ role: "doctor" }),
@@ -112,6 +139,29 @@ const getStats = async (req, res) => {
       { $sort: { "_id.year": 1, "_id.month": 1 } },
       { $limit: 12 },
     ]),
+    Appointment.aggregate(sumCompletedFeesPipeline({})),
+    Appointment.aggregate(sumCompletedFeesPipeline({ date: today })),
+    Appointment.aggregate(sumCompletedFeesPipeline({ date: { $gte: monthStartStr, $lte: monthEndStr } })),
+    Appointment.aggregate([
+      { $match: { status: "completed" } },
+      {
+        $lookup: {
+          from: "doctorprofiles",
+          localField: "doctorProfile",
+          foreignField: "_id",
+          as: "dp",
+        },
+      },
+      { $unwind: "$dp" },
+      {
+        $group: {
+          _id: { year: { $year: "$createdAt" }, month: { $month: "$createdAt" } },
+          earnings: { $sum: { $toDouble: { $ifNull: ["$dp.consultationFee", 0] } } },
+        },
+      },
+      { $sort: { "_id.year": 1, "_id.month": 1 } },
+      { $limit: 12 },
+    ]),
   ]);
 
   const returningPatientsAgg = await Appointment.aggregate([
@@ -131,16 +181,19 @@ const getStats = async (req, res) => {
     completed: item.completedCount,
   }));
 
-  const monthlyEarningsTrend = monthlyAppointmentTrendAgg.map((item) => ({
+  const monthlyEarningsTrend = monthlyEarnAgg.map((item) => ({
     month: `${item._id.month}/${item._id.year}`,
-    earnings: item.completedCount * consultationFee,
+    earnings: Math.round(item.earnings * 100) / 100,
   }));
 
   const returningPatients = returningPatientsAgg[0]?.count || 0;
   const patientGrowthRate =
     prevMonthPatients > 0 ? (((newPatientsMonth - prevMonthPatients) / prevMonthPatients) * 100).toFixed(1) : "100.0";
-  const completedRevenue = completedAppointments * consultationFee;
-  const monthlyEarnings = monthlyAppointmentTrendAgg.reduce((sum, item) => sum + item.completedCount * consultationFee, 0);
+  const grossRevenue = Math.round((completedRevenueAgg[0]?.gross || 0) * 100) / 100;
+  const platformCommission = Math.round(grossRevenue * commissionRate * 100) / 100;
+  const workerPayoutTotal = Math.round((grossRevenue - platformCommission) * 100) / 100;
+  const dailyGross = Math.round((dailyGrossAgg[0]?.gross || 0) * 100) / 100;
+  const monthlyEarnings = Math.round((monthlyPeriodGrossAgg[0]?.gross || 0) * 100) / 100;
 
   res.json({
     totalPatients,
@@ -155,7 +208,10 @@ const getStats = async (req, res) => {
     activeDoctors,
     inactiveDoctors,
     pendingDoctorApplications,
-    totalRevenue: completedRevenue,
+    totalRevenue: grossRevenue,
+    platformCommission,
+    workerPayoutTotal,
+    commissionRatePercent: Math.round(commissionRate * 100),
     statusAnalytics,
     patientAnalytics: {
       newPatientsToday,
@@ -181,8 +237,10 @@ const getStats = async (req, res) => {
       averageAppointmentDuration: 30,
     },
     financialStats: {
-      dailyEarnings: completedAppointments * consultationFee,
+      dailyEarnings: dailyGross,
       monthlyEarnings,
+      platformCommission,
+      workerPayoutTotal,
       paymentMethods: { cash: Math.round(totalAppointments * 0.35), online: Math.round(totalAppointments * 0.65) },
       pendingPayments: pendingAppointments,
       refundRequests: cancelledAppointments,
@@ -257,10 +315,11 @@ const listDoctorApplications = async (req, res) => {
 };
 
 const listApprovedDoctors = async (req, res) => {
-  const doctors = await DoctorProfile.find({ status: "approved", isActive: true })
-    .populate("user", "name email specialization experience degreeFile status")
+  const doctors = await DoctorProfile.find({ status: "approved" })
+    .populate("user", "name email specialization experience degreeFile status suspendedUntil suspensionReason")
     .sort({ createdAt: -1 });
-  res.json(doctors);
+  const filtered = doctors.filter((item) => ["approved", "suspended"].includes(item?.user?.status));
+  res.json(filtered);
 };
 
 const updateDoctorApplicationStatus = async (req, res) => {
@@ -294,11 +353,59 @@ const blockApprovedDoctor = async (req, res) => {
 
   const user = await User.findById(profile.user._id);
   if (user) {
-    user.status = "rejected";
+    user.status = "blocked";
+    user.suspendedUntil = null;
+    user.suspensionReason = "Blocked by admin";
     await user.save();
   }
 
   res.json({ message: "Doctor blocked successfully" });
+};
+
+const suspendApprovedDoctor = async (req, res) => {
+  const profile = await DoctorProfile.findById(req.params.id).populate("user");
+  if (!profile) return res.status(404).json({ message: "Worker not found" });
+
+  const hours = Number(req.body?.hours ?? 24);
+  const safeHours = Number.isFinite(hours) && hours > 0 ? Math.min(hours, 24 * 30) : 24; // cap 30 days
+  const until = new Date(Date.now() + safeHours * 60 * 60 * 1000);
+
+  profile.isActive = false;
+  // keep status approved so worker can still view dashboard and see suspend banner
+  profile.status = "approved";
+  await profile.save();
+
+  const user = await User.findById(profile.user._id);
+  if (user) {
+    user.status = "suspended";
+    user.suspendedUntil = until;
+    user.suspensionReason = String(req.body?.reason || "Temporarily suspended by admin").trim();
+    await user.save();
+  }
+
+  res.json({ message: "Worker temporarily suspended", suspendedUntil: until });
+};
+
+const unsuspendApprovedDoctor = async (req, res) => {
+  const profile = await DoctorProfile.findById(req.params.id).populate("user");
+  if (!profile) return res.status(404).json({ message: "Worker not found" });
+
+  const user = await User.findById(profile.user._id);
+  if (!user) return res.status(404).json({ message: "Worker account not found" });
+  if (user.status !== "suspended") {
+    return res.status(400).json({ message: "Worker is not temporarily suspended" });
+  }
+
+  user.status = "approved";
+  user.suspendedUntil = null;
+  user.suspensionReason = "";
+  await user.save();
+
+  profile.isActive = true;
+  profile.status = "approved";
+  await profile.save();
+
+  res.json({ message: "Worker suspension removed" });
 };
 
 module.exports = {
@@ -310,5 +417,7 @@ module.exports = {
   listDoctorApplications,
   listApprovedDoctors,
   updateDoctorApplicationStatus,
+  suspendApprovedDoctor,
+  unsuspendApprovedDoctor,
   blockApprovedDoctor,
 };

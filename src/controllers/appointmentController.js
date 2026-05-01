@@ -76,11 +76,23 @@ const rescheduleAppointment = async (req, res) => {
 };
 
 const payAppointment = async (req, res) => {
-  const appointment = await Appointment.findOne({ _id: req.params.id, patient: req.user._id });
+  const appointment = await Appointment.findOne({ _id: req.params.id, patient: req.user._id }).populate(
+    "doctorProfile",
+    "consultationFee"
+  );
   if (!appointment) return res.status(404).json({ message: "Appointment not found" });
+  const fee = Math.round(Number(appointment.doctorProfile?.consultationFee ?? 0));
   appointment.status = "completed";
+  appointment.paymentAmount = fee;
+  appointment.paymentCurrency = "PKR";
+  appointment.paymentMethod = fee > 0 ? "manual" : "none";
+  appointment.paidAt = new Date();
   await appointment.save();
-  res.json(appointment);
+  const populated = await Appointment.findById(appointment._id)
+    .populate("doctor", "name email")
+    .populate("doctorProfile", "specialization consultationFee")
+    .populate("prescription");
+  res.json(populated);
 };
 
 const createStripeCheckoutSession = async (req, res) => {
@@ -143,7 +155,10 @@ const verifyStripeSession = async (req, res) => {
     return res.status(400).json({ message: "sessionId and appointmentId are required" });
   }
 
-  const appointment = await Appointment.findOne({ _id: appointmentId, patient: req.user._id });
+  const appointment = await Appointment.findOne({ _id: appointmentId, patient: req.user._id }).populate(
+    "doctorProfile",
+    "consultationFee"
+  );
   if (!appointment) return res.status(404).json({ message: "Appointment not found" });
 
   const session = await stripe.checkout.sessions.retrieve(sessionId);
@@ -154,9 +169,27 @@ const verifyStripeSession = async (req, res) => {
     return res.status(400).json({ message: "Payment verification failed" });
   }
 
+  const feeFromProfile = Math.round(Number(appointment.doctorProfile?.consultationFee ?? 0));
+  const amountTotal = session.amount_total != null ? Number(session.amount_total) : null;
+  const fromStripeMajor =
+    amountTotal != null && Number.isFinite(amountTotal) ? Math.round(amountTotal / 100) : null;
+  const resolvedAmount =
+    feeFromProfile > 0 ? feeFromProfile : fromStripeMajor != null && fromStripeMajor > 0 ? fromStripeMajor : 0;
+
   appointment.status = "completed";
+  appointment.paymentAmount = resolvedAmount;
+  appointment.paymentCurrency =
+    String(session.currency || "pkr").toUpperCase() === "PKR" ? "PKR" : String(session.currency || "PKR").toUpperCase();
+  appointment.paymentMethod = "stripe";
+  appointment.paidAt = new Date();
+  appointment.stripeCheckoutSessionId = sessionId;
   await appointment.save();
-  return res.json({ message: "Payment verified", appointment });
+
+  const populated = await Appointment.findById(appointment._id)
+    .populate("doctor", "name email")
+    .populate("doctorProfile", "specialization consultationFee")
+    .populate("prescription");
+  return res.json({ message: "Payment verified", appointment: populated });
 };
 
 module.exports = {

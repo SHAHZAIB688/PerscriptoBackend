@@ -9,6 +9,8 @@ const {
   listDoctorApplications,
   listApprovedDoctors,
   updateDoctorApplicationStatus,
+  suspendApprovedDoctor,
+  unsuspendApprovedDoctor,
   blockApprovedDoctor,
 } = require("../controllers/adminController");
 
@@ -23,6 +25,8 @@ router.get("/appointments", listAppointments);
 router.get("/doctor-applications", listDoctorApplications);
 router.get("/approved-doctors", listApprovedDoctors);
 router.patch("/doctor-applications/:id/status", updateDoctorApplicationStatus);
+router.patch("/approved-doctors/:id/suspend", suspendApprovedDoctor);
+router.patch("/approved-doctors/:id/unsuspend", unsuspendApprovedDoctor);
 router.patch("/approved-doctors/:id/block", blockApprovedDoctor);
 
 module.exports = router;
