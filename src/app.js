@@ -8,6 +8,7 @@ const appointmentRoutes = require("./routes/appointmentRoutes");
 const adminRoutes = require("./routes/adminRoutes");
 const reviewRoutes = require("./routes/reviewRoutes");
 const { notFound, errorHandler } = require("./middleware/errorMiddleware");
+const { DOCTOR_SPECIALIZATION_OPTIONS } = require("./constants/doctorSpecializations");
 
 const app = express();
 
@@ -17,6 +18,9 @@ app.use(morgan("dev"));
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
 app.get("/api/health", (req, res) => res.json({ ok: true }));
+app.get("/api/meta/doctor-specializations", (req, res) =>
+  res.json({ specializations: DOCTOR_SPECIALIZATION_OPTIONS })
+);
 app.use("/api/auth", authRoutes);
 app.use("/api/doctors", doctorRoutes);
 app.use("/api/appointments", appointmentRoutes);

@@ -3,7 +3,8 @@ const notFound = (req, res) => {
 };
 
 const errorHandler = (err, req, res, next) => {
-  const statusCode = res.statusCode === 200 ? 500 : res.statusCode;
+  const fromErr = Number(err.status || err.statusCode);
+  const statusCode = Number.isFinite(fromErr) && fromErr >= 400 ? fromErr : res.statusCode === 200 ? 500 : res.statusCode;
   res.status(statusCode).json({
     message: err.message || "Server error",
     stack: process.env.NODE_ENV === "production" ? null : err.stack,

@@ -1,5 +1,7 @@
+const User = require("../models/User");
 const DoctorProfile = require("../models/DoctorProfile");
 const Appointment = require("../models/Appointment");
+const { isValidDoctorSpecialization } = require("../constants/doctorSpecializations");
 
 const isValidTime = (value) => /^([01]\d|2[0-3]):([0-5]\d)$/.test(String(value || ""));
 
@@ -104,13 +106,26 @@ const updateProfile = async (req, res) => {
   const profile = await DoctorProfile.findOne({ user: req.user._id });
   if (!profile) return res.status(404).json({ message: "Doctor profile not found" });
 
-  const { consultationFee, bio, experienceYears } = req.body;
+  const { consultationFee, bio, experienceYears, specialization } = req.body;
   if (consultationFee !== undefined) profile.consultationFee = Number(consultationFee);
   if (bio !== undefined) profile.bio = bio;
   if (experienceYears !== undefined) profile.experienceYears = Number(experienceYears);
 
+  if (specialization !== undefined) {
+    const s = String(specialization).trim();
+    if (!isValidDoctorSpecialization(s)) {
+      return res.status(400).json({ message: "Invalid medical specialization" });
+    }
+    profile.specialization = s;
+    await User.updateOne({ _id: req.user._id }, { specialization: s });
+  }
+
   await profile.save();
-  return res.json(profile);
+  const fresh = await DoctorProfile.findOne({ user: req.user._id }).populate(
+    "user",
+    "name email phone status specialization experience degreeFile"
+  );
+  return res.json(fresh);
 };
 
 const getAvailableSlots = async (req, res) => {

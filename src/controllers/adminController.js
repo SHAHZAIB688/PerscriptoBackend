@@ -1,6 +1,7 @@
 const User = require("../models/User");
 const DoctorProfile = require("../models/DoctorProfile");
 const Appointment = require("../models/Appointment");
+const { isValidDoctorSpecialization } = require("../constants/doctorSpecializations");
 
 const getDateString = (date) => date.toISOString().slice(0, 10);
 
@@ -264,6 +265,10 @@ const getStats = async (req, res) => {
 
 const addDoctor = async (req, res) => {
   const { name, email, phone, password, specialization, qualification } = req.body;
+  const spec = String(specialization ?? "").trim();
+  if (!isValidDoctorSpecialization(spec)) {
+    return res.status(400).json({ message: "Invalid or missing medical specialization" });
+  }
   const existing = await User.findOne({ email });
   if (existing) return res.status(409).json({ message: "Email already exists" });
   const doctor = await User.create({
@@ -272,12 +277,12 @@ const addDoctor = async (req, res) => {
     phone,
     password,
     role: "doctor",
-    specialization,
+    specialization: spec,
     status: "approved",
   });
   const profile = await DoctorProfile.create({
     user: doctor._id,
-    specialization,
+    specialization: spec,
     qualification,
     status: "approved",
     isActive: true,

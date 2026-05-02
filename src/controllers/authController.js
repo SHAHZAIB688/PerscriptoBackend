@@ -13,6 +13,8 @@ const register = async (req, res) => {
     qualification,
     experience,
   } = req.body;
+
+  const specTrimmed = role === "doctor" ? String(specialization ?? "").trim() : "";
   const existing = await User.findOne({ email });
   if (existing) return res.status(409).json({ message: "Email already exists" });
 
@@ -34,7 +36,7 @@ const register = async (req, res) => {
     phone,
     password,
     role,
-    specialization: role === "doctor" ? specialization : "",
+    specialization: role === "doctor" ? specTrimmed : "",
     experience: role === "doctor" ? Number(experience || 0) : 0,
     degreeFile: degreePath,
     image: imagePath,
@@ -44,7 +46,7 @@ const register = async (req, res) => {
   if (role === "doctor") {
     await DoctorProfile.create({
       user: user._id,
-      specialization: specialization || "General Physician",
+      specialization: specTrimmed,
       qualification: qualification || "",
       experienceYears: Number(experience || 0),
       degreeFile: degreePath,
@@ -91,7 +93,7 @@ const login = async (req, res) => {
   }
   if (user.role === "doctor" && user.status !== "approved") {
     if (user.status === "pending") {
-      return res.status(403).json({ message: "Worker account pending admin approval" });
+      return res.status(403).json({ message: "Doctor account pending admin approval" });
     }
     if (user.status === "suspended") {
       return res.status(403).json({ message: "Account temporarily suspended. Contact admin." });
@@ -118,7 +120,15 @@ const login = async (req, res) => {
   });
 };
 
-const me = async (req, res) => res.json(req.user);
+const me = async (req, res) => {
+  if (req.user.role === "doctor") {
+    const profile = await DoctorProfile.findOne({ user: req.user._id }).select("specialization");
+    const out = req.user.toObject();
+    if (profile?.specialization) out.specialization = profile.specialization;
+    return res.json(out);
+  }
+  return res.json(req.user);
+};
 
 const updateAccountProfile = async (req, res) => {
   const { name, email, phone, currentPassword, newPassword } = req.body;
