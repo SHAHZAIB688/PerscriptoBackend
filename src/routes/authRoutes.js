@@ -1,6 +1,6 @@
 const express = require("express");
 const { body } = require("express-validator");
-const { register, login, me, updateAccountProfile, updateHealthSummary } = require("../controllers/authController");
+const { register, login, googleAuth, me, updateAccountProfile, updateHealthSummary } = require("../controllers/authController");
 const { protect, authorize } = require("../middleware/authMiddleware");
 const validate = require("../middleware/validateMiddleware");
 const { upload } = require("../middleware/uploadMiddleware");
@@ -38,6 +38,15 @@ router.post(
   register
 );
 router.post("/login", [body("email").isEmail(), body("password").notEmpty()], validate, login);
+router.post(
+  "/google",
+  [
+    body("idToken").notEmpty().withMessage("Google credential is required"),
+    body("role").optional().equals("patient").withMessage("Google sign-up is only available for patients"),
+  ],
+  validate,
+  googleAuth
+);
 router.get("/me", protect, me);
 router.put("/profile", protect, authorize("patient", "doctor", "admin"), updateAccountProfile);
 router.put("/health-summary", protect, authorize("patient"), updateHealthSummary);

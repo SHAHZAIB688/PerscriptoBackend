@@ -1,6 +1,42 @@
+const crypto = require("crypto");
 const User = require("../models/User");
 const DoctorProfile = require("../models/DoctorProfile");
 const generateToken = require("../utils/generateToken");
+const { verifyFirebaseIdToken } = require("../config/firebaseAdmin");
+
+const buildAuthPayload = (user) => ({
+  token: generateToken(user._id, user.role),
+  user: {
+    id: user._id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    phone: user.phone,
+    status: user.status,
+    suspendedUntil: user.suspendedUntil || null,
+    specialization: user.specialization,
+    experience: user.experience,
+    degreeFile: user.degreeFile,
+  },
+});
+
+const assertDoctorCanLogin = (user, res) => {
+  if (user.role !== "doctor" || user.status === "approved") return true;
+  if (user.status === "pending") {
+    res.status(403).json({ message: "Doctor account pending admin approval" });
+    return false;
+  }
+  if (user.status === "suspended") {
+    res.status(403).json({ message: "Account temporarily suspended. Contact admin." });
+    return false;
+  }
+  if (user.status === "blocked" || user.status === "rejected") {
+    res.status(403).json({ message: "Account blocked. Contact admin." });
+    return false;
+  }
+  res.status(403).json({ message: "Account not approved" });
+  return false;
+};
 
 const register = async (req, res) => {
   const {
@@ -91,33 +127,8 @@ const login = async (req, res) => {
   if (!user || !(await user.comparePassword(password))) {
     return res.status(401).json({ message: "Invalid credentials" });
   }
-  if (user.role === "doctor" && user.status !== "approved") {
-    if (user.status === "pending") {
-      return res.status(403).json({ message: "Doctor account pending admin approval" });
-    }
-    if (user.status === "suspended") {
-      return res.status(403).json({ message: "Account temporarily suspended. Contact admin." });
-    }
-    if (user.status === "blocked" || user.status === "rejected") {
-      return res.status(403).json({ message: "Account blocked. Contact admin." });
-    }
-    return res.status(403).json({ message: "Account not approved" });
-  }
-  return res.json({
-    token: generateToken(user._id, user.role),
-    user: {
-      id: user._id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      phone: user.phone,
-      status: user.status,
-      suspendedUntil: user.suspendedUntil || null,
-      specialization: user.specialization,
-      experience: user.experience,
-      degreeFile: user.degreeFile,
-    },
-  });
+  if (!assertDoctorCanLogin(user, res)) return;
+  return res.json(buildAuthPayload(user));
 };
 
 const me = async (req, res) => {
@@ -172,6 +183,55 @@ const updateAccountProfile = async (req, res) => {
   return res.json(fresh);
 };
 
+const googleAuth = async (req, res) => {
+  const { idToken, role = "patient" } = req.body;
+
+  if (!idToken || typeof idToken !== "string") {
+    return res.status(400).json({ message: "Missing id token" });
+  }
+  if (role !== "patient") {
+    return res.status(400).json({ message: "Google sign-up is only available for patients" });
+  }
+
+  let decoded;
+  try {
+    decoded = await verifyFirebaseIdToken(idToken);
+  } catch (err) {
+    console.error("Firebase ID token verification failed:", err.message);
+    return res.status(401).json({
+      message:
+        "Google sign-in could not be verified. Add FIREBASE_SERVICE_ACCOUNT_JSON to the backend .env (Firebase Console → Project settings → Service accounts → Generate new private key).",
+    });
+  }
+
+  const email = String(decoded.email || "").toLowerCase();
+  if (!email) return res.status(400).json({ message: "Google account has no email" });
+  if (!decoded.email_verified) {
+    return res.status(400).json({ message: "Verify your Google email before continuing" });
+  }
+
+  const name = (decoded.name && String(decoded.name).trim()) || email.split("@")[0];
+
+  let user = await User.findOne({ email });
+
+  if (user) {
+    if (!assertDoctorCanLogin(user, res)) return;
+    return res.json(buildAuthPayload(user));
+  }
+
+  const randomPassword = crypto.randomBytes(32).toString("hex");
+  user = await User.create({
+    name,
+    email,
+    phone: "0000000000",
+    password: randomPassword,
+    role: "patient",
+    status: "approved",
+  });
+
+  return res.status(201).json(buildAuthPayload(user));
+};
+
 const updateHealthSummary = async (req, res) => {
   const { bloodGroup = "", allergies = "", chronicDiseases = "", lastCheckup = "" } = req.body;
 
@@ -192,4 +252,4 @@ const updateHealthSummary = async (req, res) => {
   });
 };
 
-module.exports = { register, login, me, updateAccountProfile, updateHealthSummary };
+module.exports = { register, login, googleAuth, me, updateAccountProfile, updateHealthSummary };
