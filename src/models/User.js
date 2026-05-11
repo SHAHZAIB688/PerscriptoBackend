@@ -29,6 +29,10 @@ const userSchema = new mongoose.Schema(
       chronicDiseases: { type: String, default: "" },
       lastCheckup: { type: String, default: "" }, // YYYY-MM-DD
     },
+    locationCity: { type: String, default: "" },
+    locationAddress: { type: String, default: "" },
+    locationLat: { type: Number, default: null },
+    locationLng: { type: Number, default: null },
   },
   { timestamps: true }
 );

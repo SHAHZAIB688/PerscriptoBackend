@@ -5,15 +5,53 @@ const { isValidDoctorSpecialization } = require("../constants/doctorSpecializati
 
 const isValidTime = (value) => /^([01]\d|2[0-3]):([0-5]\d)$/.test(String(value || ""));
 
-const getDoctors = async (req, res) => {
-  const { search = "", specialization = "" } = req.query;
-  const query = { isActive: true, status: "approved" };
-  if (specialization) query.specialization = new RegExp(specialization, "i");
+const escapeRegex = (s) => String(s || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-  const doctors = await DoctorProfile.find(query)
+const haversineKm = (lat1, lon1, lat2, lon2) => {
+  const R = 6371;
+  const toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+};
+
+const getDoctors = async (req, res) => {
+  const { search = "", specialization = "", lat, lng, radiusKm = "100" } = req.query;
+  const query = { isActive: true, status: "approved" };
+  const spec = String(specialization || "").trim();
+  if (spec && spec !== "all") {
+    query.specialization = new RegExp(escapeRegex(spec), "i");
+  }
+
+  const searchRe = new RegExp(escapeRegex(search), "i");
+  let doctors = await DoctorProfile.find(query)
     .populate("user", "name email phone role")
     .where("specialization")
-    .regex(new RegExp(search, "i"));
+    .regex(searchRe)
+    .lean();
+
+  const plat = Number(lat);
+  const plng = Number(lng);
+  const radius = Math.min(Math.max(Number(radiusKm) || 100, 5), 500);
+
+  if (Number.isFinite(plat) && Number.isFinite(plng)) {
+    doctors = doctors
+      .map((d) => {
+        const dlat = d.locationLat;
+        const dlng = d.locationLng;
+        if (!Number.isFinite(dlat) || !Number.isFinite(dlng)) return null;
+        const dist = haversineKm(plat, plng, dlat, dlng);
+        if (dist > radius) return null;
+        return { ...d, distanceKm: Math.round(dist * 10) / 10 };
+      })
+      .filter(Boolean)
+      .sort((a, b) => (a.distanceKm || 0) - (b.distanceKm || 0));
+  }
+
   res.json(doctors);
 };
 
@@ -106,14 +144,25 @@ const getDoctorProfile = async (req, res) => {
   return res.json(profile);
 };
 
+const parseOptionalCoord = (v) => {
+  if (v === undefined || v === null || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+};
+
 const updateProfile = async (req, res) => {
   const profile = await DoctorProfile.findOne({ user: req.user._id });
   if (!profile) return res.status(404).json({ message: "Doctor profile not found" });
 
-  const { consultationFee, bio, experienceYears, specialization } = req.body;
+  const { consultationFee, bio, experienceYears, specialization, locationCity, locationAddress, locationLat, locationLng } =
+    req.body;
   if (consultationFee !== undefined) profile.consultationFee = Number(consultationFee);
   if (bio !== undefined) profile.bio = bio;
   if (experienceYears !== undefined) profile.experienceYears = Number(experienceYears);
+  if (locationCity !== undefined) profile.locationCity = String(locationCity || "").trim();
+  if (locationAddress !== undefined) profile.locationAddress = String(locationAddress || "").trim();
+  if (locationLat !== undefined) profile.locationLat = parseOptionalCoord(locationLat);
+  if (locationLng !== undefined) profile.locationLng = parseOptionalCoord(locationLng);
 
   if (specialization !== undefined) {
     const s = String(specialization).trim();

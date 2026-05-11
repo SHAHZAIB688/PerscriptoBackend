@@ -4,21 +4,39 @@ const DoctorProfile = require("../models/DoctorProfile");
 const generateToken = require("../utils/generateToken");
 const { verifyFirebaseIdToken } = require("../config/firebaseAdmin");
 
-const buildAuthPayload = (user) => ({
-  token: generateToken(user._id, user.role),
-  user: {
-    id: user._id,
-    name: user.name,
-    email: user.email,
-    role: user.role,
-    phone: user.phone,
-    status: user.status,
-    suspendedUntil: user.suspendedUntil || null,
-    specialization: user.specialization,
-    experience: user.experience,
-    degreeFile: user.degreeFile,
-  },
-});
+const parseOptionalCoord = (v) => {
+  if (v === undefined || v === null || v === "") return undefined;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : undefined;
+};
+
+const buildAuthPayload = (user, locationFromProfile = null) => {
+  const loc = locationFromProfile || {
+    locationCity: user.locationCity,
+    locationAddress: user.locationAddress,
+    locationLat: user.locationLat,
+    locationLng: user.locationLng,
+  };
+  return {
+    token: generateToken(user._id, user.role),
+    user: {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      phone: user.phone,
+      status: user.status,
+      suspendedUntil: user.suspendedUntil || null,
+      specialization: user.specialization,
+      experience: user.experience,
+      degreeFile: user.degreeFile,
+      locationCity: loc.locationCity ?? "",
+      locationAddress: loc.locationAddress ?? "",
+      locationLat: loc.locationLat ?? null,
+      locationLng: loc.locationLng ?? null,
+    },
+  };
+};
 
 const assertDoctorCanLogin = (user, res) => {
   if (user.role !== "doctor" || user.status === "approved") return true;
@@ -48,7 +66,16 @@ const register = async (req, res) => {
     specialization,
     qualification,
     experience,
+    locationCity,
+    locationAddress,
+    locationLat,
+    locationLng,
   } = req.body;
+
+  const cityTrim = String(locationCity ?? "").trim();
+  const addressTrim = String(locationAddress ?? "").trim();
+  const latNum = parseOptionalCoord(locationLat);
+  const lngNum = parseOptionalCoord(locationLng);
 
   const specTrimmed = role === "doctor" ? String(specialization ?? "").trim() : "";
   const existing = await User.findOne({ email });
@@ -77,6 +104,14 @@ const register = async (req, res) => {
     degreeFile: degreePath,
     image: imagePath,
     status: role === "doctor" ? "pending" : "approved",
+    ...(role === "patient"
+      ? {
+          locationCity: cityTrim,
+          locationAddress: addressTrim,
+          ...(latNum !== undefined ? { locationLat: latNum } : {}),
+          ...(lngNum !== undefined ? { locationLng: lngNum } : {}),
+        }
+      : {}),
   });
 
   if (role === "doctor") {
@@ -89,22 +124,22 @@ const register = async (req, res) => {
       image: imagePath,
       status: "pending",
       isActive: false,
+      locationCity: cityTrim,
+      locationAddress: addressTrim,
+      ...(latNum !== undefined ? { locationLat: latNum } : {}),
+      ...(lngNum !== undefined ? { locationLng: lngNum } : {}),
     });
   }
 
+  const locUser = {
+    locationCity: cityTrim,
+    locationAddress: addressTrim,
+    locationLat: latNum ?? null,
+    locationLng: lngNum ?? null,
+  };
+
   return res.status(201).json({
-    token: generateToken(user._id, user.role),
-    user: {
-      id: user._id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      phone: user.phone,
-      status: user.status,
-      specialization: user.specialization,
-      experience: user.experience,
-      degreeFile: user.degreeFile,
-    },
+    ...buildAuthPayload(user, locUser),
   });
 };
 
@@ -128,21 +163,38 @@ const login = async (req, res) => {
     return res.status(401).json({ message: "Invalid credentials" });
   }
   if (!assertDoctorCanLogin(user, res)) return;
-  return res.json(buildAuthPayload(user));
+
+  let locProfile = null;
+  if (user.role === "doctor") {
+    const profile = await DoctorProfile.findOne({ user: user._id })
+      .select("locationCity locationAddress locationLat locationLng")
+      .lean();
+    if (profile) locProfile = profile;
+  }
+  return res.json(buildAuthPayload(user, locProfile));
 };
 
 const me = async (req, res) => {
   if (req.user.role === "doctor") {
-    const profile = await DoctorProfile.findOne({ user: req.user._id }).select("specialization");
+    const profile = await DoctorProfile.findOne({ user: req.user._id }).select(
+      "specialization locationCity locationAddress locationLat locationLng"
+    );
     const out = req.user.toObject();
     if (profile?.specialization) out.specialization = profile.specialization;
+    if (profile) {
+      out.locationCity = profile.locationCity ?? "";
+      out.locationAddress = profile.locationAddress ?? "";
+      out.locationLat = profile.locationLat;
+      out.locationLng = profile.locationLng;
+    }
     return res.json(out);
   }
   return res.json(req.user);
 };
 
 const updateAccountProfile = async (req, res) => {
-  const { name, email, phone, currentPassword, newPassword } = req.body;
+  const { name, email, phone, currentPassword, newPassword, locationCity, locationAddress, locationLat, locationLng } =
+    req.body;
 
   const user = await User.findById(req.user._id);
   if (!user) return res.status(404).json({ message: "User not found" });
@@ -178,7 +230,54 @@ const updateAccountProfile = async (req, res) => {
     user.password = pwd;
   }
 
+  if (user.role === "patient") {
+    if (locationCity !== undefined) user.locationCity = String(locationCity || "").trim();
+    if (locationAddress !== undefined) user.locationAddress = String(locationAddress || "").trim();
+    if (locationLat !== undefined) {
+      const n = parseOptionalCoord(locationLat);
+      user.locationLat = n === undefined ? null : n;
+    }
+    if (locationLng !== undefined) {
+      const n = parseOptionalCoord(locationLng);
+      user.locationLng = n === undefined ? null : n;
+    }
+  }
+
   await user.save();
+
+  if (user.role === "doctor" && (locationCity !== undefined || locationAddress !== undefined || locationLat !== undefined || locationLng !== undefined)) {
+    const profile = await DoctorProfile.findOne({ user: user._id });
+    if (profile) {
+      if (locationCity !== undefined) profile.locationCity = String(locationCity || "").trim();
+      if (locationAddress !== undefined) profile.locationAddress = String(locationAddress || "").trim();
+      if (locationLat !== undefined) {
+        const n = parseOptionalCoord(locationLat);
+        profile.locationLat = n === undefined ? null : n;
+      }
+      if (locationLng !== undefined) {
+        const n = parseOptionalCoord(locationLng);
+        profile.locationLng = n === undefined ? null : n;
+      }
+      await profile.save();
+    }
+  }
+
+  if (user.role === "doctor") {
+    const profile = await DoctorProfile.findOne({ user: user._id }).select(
+      "specialization locationCity locationAddress locationLat locationLng"
+    );
+    const freshUser = await User.findById(user._id).select("-password");
+    const out = freshUser.toObject();
+    if (profile?.specialization) out.specialization = profile.specialization;
+    if (profile) {
+      out.locationCity = profile.locationCity ?? "";
+      out.locationAddress = profile.locationAddress ?? "";
+      out.locationLat = profile.locationLat;
+      out.locationLng = profile.locationLng;
+    }
+    return res.json(out);
+  }
+
   const fresh = await User.findById(user._id).select("-password");
   return res.json(fresh);
 };
@@ -216,7 +315,14 @@ const googleAuth = async (req, res) => {
 
   if (user) {
     if (!assertDoctorCanLogin(user, res)) return;
-    return res.json(buildAuthPayload(user));
+    let locProfile = null;
+    if (user.role === "doctor") {
+      const profile = await DoctorProfile.findOne({ user: user._id })
+        .select("locationCity locationAddress locationLat locationLng")
+        .lean();
+      if (profile) locProfile = profile;
+    }
+    return res.json(buildAuthPayload(user, locProfile));
   }
 
   const randomPassword = crypto.randomBytes(32).toString("hex");

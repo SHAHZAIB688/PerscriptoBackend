@@ -30,6 +30,10 @@ const doctorProfileSchema = new mongoose.Schema(
     numReviews: { type: Number, default: 0 },
     availability: { type: [slotSchema], default: [] },
     isActive: { type: Boolean, default: false },
+    locationCity: { type: String, default: "" },
+    locationAddress: { type: String, default: "" },
+    locationLat: { type: Number, default: null },
+    locationLng: { type: Number, default: null },
   },
   { timestamps: true }
 );
