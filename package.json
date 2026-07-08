@@ -1,11 +1,12 @@
 {
-  "name": "backend",
+  "name": "doctors-on-hand-backend",
   "version": "1.0.0",
   "description": "",
   "main": "src/server.js",
   "scripts": {
     "dev": "nodemon src/server.js",
-    "start": "node src/server.js"
+    "start": "node src/server.js",
+    "import:oladoc": "node scripts/importOladocDoctors.js"
   },
   "keywords": [],
   "author": "",

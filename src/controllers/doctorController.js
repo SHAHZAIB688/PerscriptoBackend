@@ -2,57 +2,89 @@ const User = require("../models/User");
 const DoctorProfile = require("../models/DoctorProfile");
 const Appointment = require("../models/Appointment");
 const { isValidDoctorSpecialization } = require("../constants/doctorSpecializations");
+const { rankDoctorsForCondition } = require("../services/doctorMatchingService");
 
 const isValidTime = (value) => /^([01]\d|2[0-3]):([0-5]\d)$/.test(String(value || ""));
 
 const escapeRegex = (s) => String(s || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-const haversineKm = (lat1, lon1, lat2, lon2) => {
-  const R = 6371;
-  const toRad = (d) => (d * Math.PI) / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-};
-
 const getDoctors = async (req, res) => {
-  const { search = "", specialization = "", lat, lng, radiusKm = "100" } = req.query;
+  const { search = "", specialization = "", condition = "", lat, lng, radiusKm = "100" } = req.query;
   const query = { isActive: true, status: "approved" };
   const spec = String(specialization || "").trim();
-  if (spec && spec !== "all") {
+  if (spec && spec !== "all" && spec !== "All") {
     query.specialization = new RegExp(escapeRegex(spec), "i");
   }
 
-  const searchRe = new RegExp(escapeRegex(search), "i");
   let doctors = await DoctorProfile.find(query)
+    .select("-bio")
     .populate("user", "name email phone role")
-    .where("specialization")
-    .regex(searchRe)
+    .sort({ averageRating: -1, numReviews: -1 })
     .lean();
 
-  const plat = Number(lat);
-  const plng = Number(lng);
-  const radius = Math.min(Math.max(Number(radiusKm) || 100, 5), 500);
-
-  if (Number.isFinite(plat) && Number.isFinite(plng)) {
-    doctors = doctors
-      .map((d) => {
-        const dlat = d.locationLat;
-        const dlng = d.locationLng;
-        if (!Number.isFinite(dlat) || !Number.isFinite(dlng)) return null;
-        const dist = haversineKm(plat, plng, dlat, dlng);
-        if (dist > radius) return null;
-        return { ...d, distanceKm: Math.round(dist * 10) / 10 };
-      })
-      .filter(Boolean)
-      .sort((a, b) => (a.distanceKm || 0) - (b.distanceKm || 0));
+  const searchText = String(search || "").trim();
+  if (searchText) {
+    const searchRe = new RegExp(escapeRegex(searchText), "i");
+    const searchLower = searchText.toLowerCase();
+    doctors = doctors.filter(
+      (d) =>
+        searchRe.test(d.specialization || "") ||
+        (d.user?.name || "").toLowerCase().includes(searchLower)
+    );
   }
 
-  res.json(doctors);
+  const conditionText = String(condition || "").trim();
+  const { doctors: ranked, matchedSpecializations, autoMatched } = rankDoctorsForCondition(doctors, {
+    condition: conditionText,
+    lat,
+    lng,
+    radiusKm,
+  });
+
+  const limitRaw = parseInt(req.query.limit, 10);
+  const skip = Math.max(parseInt(req.query.skip, 10) || 0, 0);
+  const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 50) : 0;
+  const total = ranked.length;
+  const paged = limit > 0 ? ranked.slice(skip, skip + limit) : ranked;
+
+  res.json({
+    doctors: paged,
+    total,
+    matchedSpecializations,
+    autoMatched,
+    condition: conditionText || null,
+  });
+};
+
+const recommendDoctor = async (req, res) => {
+  const { condition = "", lat, lng, radiusKm = "100" } = req.query;
+  const conditionText = String(condition || "").trim();
+  if (!conditionText) {
+    return res.status(400).json({ message: "Describe your symptoms or condition to get a recommendation" });
+  }
+
+  let doctors = await DoctorProfile.find({ isActive: true, status: "approved" })
+    .populate("user", "name email phone role")
+    .lean();
+
+  const { doctors: ranked, matchedSpecializations } = rankDoctorsForCondition(doctors, {
+    condition: conditionText,
+    lat,
+    lng,
+    radiusKm,
+  });
+
+  const recommended = ranked.find((d) => d.recommended) || ranked[0] || null;
+  if (!recommended) {
+    return res.status(404).json({ message: "No suitable doctor found near you for this condition" });
+  }
+
+  return res.json({
+    recommended,
+    alternates: ranked.filter((d) => d._id !== recommended._id).slice(0, 5),
+    matchedSpecializations,
+    condition: conditionText,
+  });
 };
 
 const getDoctorById = async (req, res) => {
@@ -291,6 +323,7 @@ const getAvailableSlots = async (req, res) => {
 
 module.exports = {
   getDoctors,
+  recommendDoctor,
   getDoctorById,
   updateAvailability,
   getMyAppointments,

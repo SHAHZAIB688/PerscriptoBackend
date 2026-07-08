@@ -21,6 +21,7 @@ app.get("/api/health", (req, res) => res.json({ ok: true }));
 app.get("/api/meta/doctor-specializations", (req, res) =>
   res.json({ specializations: DOCTOR_SPECIALIZATION_OPTIONS })
 );
+app.use("/api/geo", require("./routes/geoRoutes"));
 app.use("/api/auth", authRoutes);
 app.use("/api/doctors", doctorRoutes);
 app.use("/api/appointments", appointmentRoutes);

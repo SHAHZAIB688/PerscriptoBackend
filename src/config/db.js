@@ -1,4 +1,8 @@
+const dns = require("dns");
 const mongoose = require("mongoose");
+
+// Windows/local DNS often fails Atlas SRV lookups (querySrv ECONNREFUSED).
+dns.setServers(["8.8.8.8", "8.8.4.4", "1.1.1.1"]);
 
 const connectDB = async () => {
   try {
@@ -13,7 +17,9 @@ const connectDB = async () => {
       console.warn("No MongoDB URI found in env; using local default URI.");
     }
 
-    await mongoose.connect(mongoUri);
+    await mongoose.connect(mongoUri, {
+      serverSelectionTimeoutMS: 15000,
+    });
     // eslint-disable-next-line no-console
     console.log("MongoDB connected");
   } catch (error) {

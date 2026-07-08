@@ -11,6 +11,22 @@ const slotSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const hospitalSchema = new mongoose.Schema(
+  {
+    hospitalId: { type: String, default: "" },
+    name: { type: String, default: "" },
+    locality: { type: String, default: "" },
+    address: { type: String, default: "" },
+    city: { type: String, default: "" },
+    fee: { type: Number, default: 0 },
+    whenAvailable: { type: String, default: "" },
+    videoConsultation: { type: Boolean, default: false },
+    isPrimary: { type: Boolean, default: false },
+    bookUrl: { type: String, default: "" },
+  },
+  { _id: false }
+);
+
 const doctorProfileSchema = new mongoose.Schema(
   {
     user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, unique: true },
@@ -34,8 +50,18 @@ const doctorProfileSchema = new mongoose.Schema(
     locationAddress: { type: String, default: "" },
     locationLat: { type: Number, default: null },
     locationLng: { type: Number, default: null },
+    oladocDoctorId: { type: String, default: "", unique: true, sparse: true },
+    profileUrl: { type: String, default: "" },
+    services: { type: [String], default: [] },
+    pmdcVerified: { type: Boolean, default: false },
+    pmdcId: { type: String, default: "" },
+    videoConsultationAvailable: { type: Boolean, default: false },
+    hospitals: { type: [hospitalSchema], default: [] },
   },
   { timestamps: true }
 );
+
+doctorProfileSchema.index({ isActive: 1, status: 1 });
+doctorProfileSchema.index({ specialization: 1 });
 
 module.exports = mongoose.model("DoctorProfile", doctorProfileSchema);

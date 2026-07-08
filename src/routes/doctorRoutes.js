@@ -1,6 +1,7 @@
 const express = require("express");
 const {
   getDoctors,
+  recommendDoctor,
   getDoctorById,
   updateAvailability,
   getMyAppointments,
@@ -13,6 +14,7 @@ const { protect, authorize } = require("../middleware/authMiddleware");
 
 const router = express.Router();
 
+router.get("/recommend", recommendDoctor);
 router.get("/", getDoctors);
 router.get("/available-slots/:doctorId", getAvailableSlots);
 router.put("/availability", protect, authorize("doctor"), updateAvailability);

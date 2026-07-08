@@ -1,4 +1,4 @@
-# Doctor Appointment Management System (MERN)
+# DoctorsOnHand — Doctor Appointment Management System (MERN)
 
 Production-ready full-stack web app with role-based workflows for **Patient**, **Doctor**, and **Admin**.
 

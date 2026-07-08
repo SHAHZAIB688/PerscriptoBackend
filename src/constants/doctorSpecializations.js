@@ -1,6 +1,6 @@
 /**
  * Allowed doctor medical specializations (signup + profile updates).
- * Keep in sync with frontend: perscriptofrontend/.../HomeConstants.js → DOCTOR_SIGNUP_SPECIALIZATIONS
+ * Keep in sync with frontend: DoctorsOnHandFrontend/.../HomeConstants.js → DOCTOR_SIGNUP_SPECIALIZATIONS
  */
 const DOCTOR_SPECIALIZATION_OPTIONS = [
   "General Physician",
@@ -25,6 +25,9 @@ const DOCTOR_SPECIALIZATION_OPTIONS = [
   "Radiologist",
   "Anesthesiologist",
   "General Surgeon",
+  "Dentist",
+  "Hematologist",
+  "Infectious Disease Specialist",
 ];
 
 function isValidDoctorSpecialization(value) {
