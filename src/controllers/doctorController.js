@@ -321,6 +321,19 @@ const getAvailableSlots = async (req, res) => {
   }
 };
 
+const getSpecializations = async (req, res) => {
+  try {
+    const specializations = await DoctorProfile.distinct("specialization", {
+      isActive: true,
+      status: "approved",
+    });
+    res.json({ specializations: specializations.sort() || [] });
+  } catch (error) {
+    console.error("Error fetching specializations:", error);
+    res.status(500).json({ message: "Failed to fetch specializations", error: error.message });
+  }
+};
+
 module.exports = {
   getDoctors,
   recommendDoctor,
@@ -331,4 +344,5 @@ module.exports = {
   getDoctorProfile,
   updateProfile,
   getAvailableSlots,
+  getSpecializations,
 };

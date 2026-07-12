@@ -6,17 +6,18 @@ const { isValidDoctorSpecialization } = require("../constants/doctorSpecializati
 const getDateString = (date) => date.toISOString().slice(0, 10);
 
 const getStats = async (req, res) => {
-  const now = new Date();
-  const today = getDateString(now);
-  const weekStart = new Date(now);
-  weekStart.setDate(now.getDate() - 6);
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const pad2 = (n) => String(n).padStart(2, "0");
-  const monthStartStr = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-01`;
-  const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-  const monthEndStr = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(lastDayOfMonth)}`;
-  const commissionRate = Number(process.env.PLATFORM_COMMISSION_RATE || 0.2);
+  try {
+    const now = new Date();
+    const today = getDateString(now);
+    const weekStart = new Date(now);
+    weekStart.setDate(now.getDate() - 6);
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const pad2 = (n) => String(n).padStart(2, "0");
+    const monthStartStr = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-01`;
+    const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const monthEndStr = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(lastDayOfMonth)}`;
+    const commissionRate = Number(process.env.PLATFORM_COMMISSION_RATE || 0.2);
 
   const sumCompletedFeesPipeline = (match) => [
     { $match: { status: "completed", ...match } },
@@ -124,8 +125,8 @@ const getStats = async (req, res) => {
       {
         $group: {
           _id: null,
-          availableDoctors: { $sum: { $cond: [{ $gt: [{ $size: "$availability" }, 0] }, 1, 0] } },
-          unavailableDoctors: { $sum: { $cond: [{ $gt: [{ $size: "$availability" }, 0] }, 0, 1] } },
+          availableDoctors: { $sum: { $cond: [{ $gt: [{ $size: { $ifNull: ["$availability", []] } }, 0] }, 1, 0] } },
+          unavailableDoctors: { $sum: { $cond: [{ $gt: [{ $size: { $ifNull: ["$availability", []] } }, 0] }, 0, 1] } },
         },
       },
     ]),
@@ -261,6 +262,10 @@ const getStats = async (req, res) => {
     monthlyAppointmentTrend,
     monthlyEarningsTrend,
   });
+  } catch (error) {
+    console.error("Error fetching admin stats:", error);
+    res.status(500).json({ message: "Failed to fetch stats", error: error.message });
+  }
 };
 
 const addDoctor = async (req, res) => {

@@ -9,11 +9,13 @@ const {
   getDoctorProfile,
   updateProfile,
   getAvailableSlots,
+  getSpecializations,
 } = require("../controllers/doctorController");
 const { protect, authorize } = require("../middleware/authMiddleware");
 
 const router = express.Router();
 
+router.get("/specializations", getSpecializations);
 router.get("/recommend", recommendDoctor);
 router.get("/", getDoctors);
 router.get("/available-slots/:doctorId", getAvailableSlots);

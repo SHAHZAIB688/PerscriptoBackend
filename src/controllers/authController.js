@@ -115,20 +115,29 @@ const register = async (req, res) => {
   });
 
   if (role === "doctor") {
-    await DoctorProfile.create({
-      user: user._id,
-      specialization: specTrimmed,
-      qualification: qualification || "",
-      experienceYears: Number(experience || 0),
-      degreeFile: degreePath,
-      image: imagePath,
-      status: "pending",
-      isActive: false,
-      locationCity: cityTrim,
-      locationAddress: addressTrim,
-      ...(latNum !== undefined ? { locationLat: latNum } : {}),
-      ...(lngNum !== undefined ? { locationLng: lngNum } : {}),
-    });
+    try {
+      await DoctorProfile.create({
+        user: user._id,
+        specialization: specTrimmed,
+        qualification: qualification || "",
+        experienceYears: Number(experience || 0),
+        degreeFile: degreePath,
+        image: imagePath,
+        status: "pending",
+        isActive: false,
+        locationCity: cityTrim,
+        locationAddress: addressTrim,
+        ...(latNum !== undefined ? { locationLat: latNum } : {}),
+        ...(lngNum !== undefined ? { locationLng: lngNum } : {}),
+      });
+    } catch (error) {
+      await User.deleteOne({ _id: user._id });
+      if (error?.code === 11000) {
+        return res.status(409).json({ message: "Email already exists" });
+      }
+      console.error("Doctor profile create failed:", error.message);
+      return res.status(500).json({ message: "Unable to complete doctor registration. Please try again." });
+    }
   }
 
   const locUser = {

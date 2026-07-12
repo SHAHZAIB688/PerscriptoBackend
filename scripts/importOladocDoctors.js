@@ -240,7 +240,6 @@ const upsertDoctor = async (mapped) => {
   }
 
   Object.assign(profile, {
-    oladocDoctorId: mapped.oladocDoctorId,
     specialization: mapped.specialization,
     qualification: mapped.qualification,
     experienceYears: mapped.experienceYears,
@@ -263,6 +262,12 @@ const upsertDoctor = async (mapped) => {
     videoConsultationAvailable: mapped.videoConsultationAvailable,
     hospitals: mapped.hospitals,
   });
+
+  if (mapped.oladocDoctorId) {
+    profile.oladocDoctorId = mapped.oladocDoctorId;
+  } else {
+    profile.oladocDoctorId = undefined;
+  }
 
   await profile.save();
 };

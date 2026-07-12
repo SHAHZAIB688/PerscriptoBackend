@@ -50,7 +50,8 @@ const doctorProfileSchema = new mongoose.Schema(
     locationAddress: { type: String, default: "" },
     locationLat: { type: Number, default: null },
     locationLng: { type: Number, default: null },
-    oladocDoctorId: { type: String, default: "", unique: true, sparse: true },
+    // Omit when unset — empty string breaks sparse unique indexes in MongoDB.
+    oladocDoctorId: { type: String, unique: true, sparse: true },
     profileUrl: { type: String, default: "" },
     services: { type: [String], default: [] },
     pmdcVerified: { type: Boolean, default: false },
